@@ -7,7 +7,7 @@ import subprocess
 import pandas as pd
 from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QFileDialog, QLabel, QVBoxLayout, QWidget, \
     QMessageBox, QProgressDialog, QCheckBox, QHBoxLayout, QSpacerItem, QSizePolicy, QFrame, QTableWidget, \
-    QTableWidgetItem, QLineEdit
+    QTableWidgetItem, QLineEdit, QStatusBar
 from PyQt5.QtCore import Qt, QDate, QSettings
 from PyQt5 import QtWidgets, QtCore
 from ReadOutput import *
@@ -52,6 +52,11 @@ class 主介面(QMainWindow):
         title_label = QLabel("Output核對", self)
         title_label.setStyleSheet("font-size: 24px; font-weight: bold;")
 
+        # 創建一個狀態列
+        self.執行狀態列 = QStatusBar()
+        self.執行狀態列.setStyleSheet("font-size: 15px; font-weight: bold;")
+        self.執行狀態列.setFixedSize(150, 20)
+
         # 匯入每日Output和尾數
         self.匯入按鈕 = QPushButton("匯入Output")
         self.匯入按鈕.clicked.connect(self.Import)
@@ -84,6 +89,7 @@ class 主介面(QMainWindow):
         right_layout.addWidget(self.匯出按鈕, alignment=Qt.AlignTop)
         right_layout.addWidget(self.顯示列表按鈕, alignment=Qt.AlignTop)
         right_layout.addWidget(self.核對DIP按鈕, alignment=Qt.AlignTop)
+        right_layout.addWidget(self.執行狀態列, alignment=Qt.AlignBottom)
 
         # 创建一个 QWidget 作为布局的容器
         container = QWidget(self)
@@ -95,11 +101,14 @@ class 主介面(QMainWindow):
     def Import(self):
         try:
             if self.文件選擇.Output選擇確認:
+                self.執行狀態列.showMessage('匯入資料中....', 0)
                 Output = Read_Output(self.文件選擇.Output)
-                self.核對表格.load_data_to_table(匯入資料=Output)
-                QMessageBox.information(self, '結果', 'Output匯入完成!')
+                self.核對表格.ConcatTable(匯入資料=Output)
+                QMessageBox.information(self, "結果", "匯入資料新增成功")
+                self.執行狀態列.showMessage('匯入完成', 2000)
             else:
                 QMessageBox.warning(self, "警告", "尚未選擇Output文件!")
+                self.執行狀態列.showMessage('匯入失敗!', 2000)
                 return
         except:
             error_message = traceback.format_exc()
@@ -120,6 +129,9 @@ class 主介面(QMainWindow):
             # 默認返回用戶主目錄
             桌面路徑 = 目錄.replace('\\', '/')
 
+        # 預設路徑 若此路徑不存在，則採用桌面路徑
+        預設路徑 = '//file-server/生管部/五股廠/Jimmy/Output匯出檔'
+
         # 設定檔名
         當天日期_文字格式 = datetime.datetime.now().strftime('%y%m%d%H%M')
         輸出檔名 = 'Output尾數檔' + 當天日期_文字格式 + '.xlsx'
@@ -128,44 +140,66 @@ class 主介面(QMainWindow):
             confirm = QMessageBox.question(self, "確認", "Output資料為空，確定進行輸出?",
                                            QMessageBox.Yes | QMessageBox.No)
             if confirm == QMessageBox.Yes:
-                self.核對表格.儲存資料.to_excel(f'{桌面路徑}/{輸出檔名}', index=False)
-                QMessageBox.information(self, '結果', 'Output尾數檔案輸出完成!')
+                if os.path.exists(預設路徑):
+                    self.核對表格.儲存資料.to_excel(f'{預設路徑}/{輸出檔名}', index=False, sheet_name='匯出檔')
+                    self.執行狀態列.showMessage('檔案輸出完成!', 2000)
+                    QMessageBox.information(self, '結果', 'Output尾數檔案輸出完成!')
+                else:
+                    self.核對表格.儲存資料.to_excel(f'{桌面路徑}/{輸出檔名}', index=False, sheet_name='匯出檔')
+                    self.執行狀態列.showMessage('檔案輸出完成!', 2000)
+                    QMessageBox.information(self, '結果', '預設路徑不存在，Output尾數檔案已輸出至桌面!')
 
         else:
             confirm = QMessageBox.question(self, "確認", "即將輸出Output資料，確定執行?",
                                            QMessageBox.Yes | QMessageBox.No)
             if confirm == QMessageBox.Yes:
-                self.核對表格.儲存資料.to_excel(f'{桌面路徑}/{輸出檔名}', index=False)
-                QMessageBox.information(self, '結果', 'Output尾數檔案輸出完成!')
+                if os.path.exists(預設路徑):
+                    self.核對表格.儲存資料.to_excel(f'{預設路徑}/{輸出檔名}', index=False, sheet_name='匯出檔')
+                    self.執行狀態列.showMessage('檔案輸出完成!', 2000)
+                    QMessageBox.information(self, '結果', 'Output尾數檔案輸出完成!')
+                else:
+                    self.核對表格.儲存資料.to_excel(f'{桌面路徑}/{輸出檔名}', index=False, sheet_name='匯出檔')
+                    self.執行狀態列.showMessage('檔案輸出完成!', 2000)
+                    QMessageBox.information(self, '結果', '預設路徑不存在，Output尾數檔案已輸出至桌面!')
 
     def Output_check(self):
         try:
-            if self.文件選擇.DIP檔案選擇確認 and self.文件選擇.Output選擇確認:
-                DIP = Read_DIP(self.文件選擇.DIP)
-                for 足標, 欄位 in self.核對表格.儲存資料.iterrows():
-                    if 欄位['母工單單號'] in DIP.index:
-                        self.核對表格.儲存資料.at[足標, '尾數'] = DIP.loc[欄位['母工單單號'], '尾數 ']
-                        self.核對表格.儲存資料.at[足標, '移轉小記'] = DIP.loc[欄位['母工單單號'], '移轉小記']
-                        self.核對表格.儲存資料.at[足標, '總計'] = DIP.loc[欄位['母工單單號'], '總計']
-                        self.核對表格.儲存資料.at[足標, '餘數'] = DIP.loc[欄位['母工單單號'], '餘數']
-                        self.核對表格.儲存資料.at[足標, '註記'] = DIP.loc[欄位['母工單單號'], 'Unnamed: 15']
-                    elif 欄位['工號'] in DIP.index:
-                        self.核對表格.儲存資料.at[足標, '尾數'] = DIP.loc[欄位['工號'], '尾數 ']
-                        self.核對表格.儲存資料.at[足標, '移轉小記'] = DIP.loc[欄位['工號'], '移轉小記']
-                        self.核對表格.儲存資料.at[足標, '總計'] = DIP.loc[欄位['工號'], '總計']
-                        self.核對表格.儲存資料.at[足標, '餘數'] = DIP.loc[欄位['工號'], '餘數']
-                        self.核對表格.儲存資料.at[足標, '註記'] = DIP.loc[欄位['工號'], 'Unnamed: 15']
+            if self.文件選擇.DIP檔案選擇確認:
+                if self.核對表格.儲存資料.empty:
+                    if not self.文件選擇.Output選擇確認:
+                        QMessageBox.warning(self, '警告', 'Output資料為空，請先選擇Outptut文件匯入!')
+                        return
                     else:
-                        self.核對表格.儲存資料.at[足標, '尾數'] = '查無資料'
+                        QMessageBox.warning(self, '警告', 'Output資料為空，請確認是否已匯入資料!')
+                        return
+                else:
+                    self.執行狀態列.showMessage('檔案核對中...', 0)
+                    DIP = Read_DIP(self.文件選擇.DIP)
+                    for 足標, 欄位 in self.核對表格.儲存資料.iterrows():
+                        if 欄位['母工單單號'] in DIP.index:
+                            self.核對表格.儲存資料.at[足標, '尾數'] = DIP.loc[欄位['母工單單號'], '尾數 ']
+                            self.核對表格.儲存資料.at[足標, '移轉小記'] = DIP.loc[欄位['母工單單號'], '移轉小記']
+                            self.核對表格.儲存資料.at[足標, '總計'] = DIP.loc[欄位['母工單單號'], '總計']
+                            self.核對表格.儲存資料.at[足標, '餘數'] = DIP.loc[欄位['母工單單號'], '餘數']
+                            self.核對表格.儲存資料.at[足標, '註記'] = DIP.loc[欄位['母工單單號'], 'Unnamed: 15']
+                        elif 欄位['工號'] in DIP.index:
+                            self.核對表格.儲存資料.at[足標, '尾數'] = DIP.loc[欄位['工號'], '尾數 ']
+                            self.核對表格.儲存資料.at[足標, '移轉小記'] = DIP.loc[欄位['工號'], '移轉小記']
+                            self.核對表格.儲存資料.at[足標, '總計'] = DIP.loc[欄位['工號'], '總計']
+                            self.核對表格.儲存資料.at[足標, '餘數'] = DIP.loc[欄位['工號'], '餘數']
+                            self.核對表格.儲存資料.at[足標, '註記'] = DIP.loc[欄位['工號'], 'Unnamed: 15']
+                        else:
+                            self.核對表格.儲存資料.at[足標, '尾數'] = '查無資料'
 
-                self.核對表格.load_data_to_table()
-                QMessageBox.information(self, '結果', 'DIP移轉紀錄已核對完成，並填入表格中!')
+                    self.核對表格.UpdateTable()
+                    self.執行狀態列.showMessage('核對完成!', 2000)
+                    QMessageBox.information(self, '結果', 'DIP移轉紀錄已核對完成，並填入表格中!')
             else:
                 QMessageBox.warning(self, '警告', '尚未選擇DIP文件!')
                 return
         except:
             error_message = traceback.format_exc()
-            QMessageBox.warning(self, "匯入功能錯誤", f"錯誤 : {error_message}")
+            QMessageBox.warning(self, "核對功能錯誤", f"錯誤 : {error_message}")
 
     def ShowTable(self):
         self.核對表格.show()
@@ -176,12 +210,13 @@ class 主介面(QMainWindow):
 
     def saveSettings(self):
         settings = QtCore.QSettings("PSI", "Output_check")
-        # settings.setValue("Output暫存資料", self.核對表格.儲存資料)
+        settings.setValue("Output暫存資料", self.核對表格.儲存資料)
         pass
 
     def loadSettings(self):
         settings = QtCore.QSettings("PSI", "Output_check")
-        # self.核對表格.儲存資料 = settings.value("Output暫存資料", self.核對表格.儲存資料)
+        self.核對表格.儲存資料 = settings.value("Output暫存資料", '初次載入')
+        self.核對表格.Import_data_and_table()
         pass
 
 
@@ -279,10 +314,6 @@ class 子介面_文件選擇(QMainWindow):
 class 子介面_核對表格(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.文件選擇 = 子介面_文件選擇()
-        # 建立一個空的Dataframe，將匯入的資料儲存，方便進行操作
-        self.儲存資料 = pd.DataFrame(columns=['母工單單號', '工號', '名稱規格', '工令量', 'SOURCE',
-                                          '尾數', '移轉小記', '總計', '餘數', '註記'])
         self.initUI()
 
     def initUI(self):
@@ -300,6 +331,12 @@ class 子介面_核對表格(QMainWindow):
         self.tableWidget = QTableWidget(self)
         self.tableWidget.setAlternatingRowColors(True)  # 每行顏色交錯顯示
         self.tableWidget.verticalHeader().setVisible(False)  # 垂直標題關閉
+        self.tableWidget.setStyleSheet("font-size: 14px;font-weight: bold")
+
+        # 資料筆數標籤
+        self.資料比數標籤 = QLabel()
+        self.資料比數標籤.setStyleSheet("font-size: 16px;font-weight: bold")
+        self.資料比數標籤.setFixedSize(150, 30)
 
         # 添加刪除特定項目的按鈕
         self.刪除按鈕 = QPushButton("刪除選定項目", self)
@@ -323,47 +360,112 @@ class 子介面_核對表格(QMainWindow):
         Button_layout.addWidget(self.搜索框, alignment=Qt.AlignLeft)
         Button_layout.addWidget(self.刪除按鈕)
         Button_layout.addWidget(self.清空按鈕)
+        Button_layout.addWidget(self.資料比數標籤)
 
         Mainlayout.addLayout(Button_layout)
         Mainlayout.addWidget(self.tableWidget)
 
-    def load_data_to_table(self, 匯入資料=None):
-        # 匯入資料 = 從外部進行匯入的資料，會與原本的資料直接合併
-        # 更新資料 = 刪除或更新項目時，會將變動的資料直接重新覆蓋儲存資料，並跑出新的表格
-        # 請注意任何有關表格的操作，都必須注意是否連動到Data
-        # 否則只清空表格，不會影響到self.儲存資料內的資料，可能造成操作上的問題
-        if isinstance(匯入資料, pd.DataFrame):
+    def Import_data_and_table(self):
+        # 給完全是第一次使用者的設定，系統判斷後會將儲存資料設置為Dataframe
+        if isinstance(self.儲存資料, str) and self.儲存資料 == '初次載入':
+            self.儲存資料 = pd.DataFrame(columns=['母工單單號', '工號', '名稱規格', '工令量', 'SOURCE',
+                                                  '尾數', '移轉小記', '總計', '餘數', '註記'])
+            self.資料比數標籤.setText(f'資料筆數: {len(self.儲存資料)}/{self.tableWidget.rowCount()}')
+            QMessageBox.information(self, '結果', '初次載入設定完成，可以開始匯入資料核對!')
+
+        # 先前設定過但沒匯入資料，就不再次設定，直接略過
+        elif isinstance(self.儲存資料, pd.DataFrame):
+            if self.儲存資料.empty:
+                self.資料比數標籤.setText(f'資料筆數: {len(self.儲存資料)}/{self.tableWidget.rowCount()}')
+                pass
+            # 若有資料則匯入表格內
+            else:
+                num_rows, num_cols = self.儲存資料.shape
+
+                # 設置表格的行數和列數
+                self.tableWidget.setRowCount(num_rows)
+                self.tableWidget.setColumnCount(num_cols)
+
+                # 設置表頭 (表格第一列的欄位名稱)
+                self.tableWidget.setHorizontalHeaderLabels(self.儲存資料.columns)
+
+                # 將數據插入表格中，先迭代行(橫的)，再迭代欄位(直的)
+                # 也就是針對每行將各個欄位的資訊填入
+                # self.儲存資料.iat[i, j] 是一個用於訪問 Pandas DataFrame 的特定位置的方法。
+                # 它的使用方式是 iat[row_index, column_index]，其中 row_index 是行的索引，column_index 是列的索引
+                # 取得值後再轉換成字串，填入表格中
+                for i in range(num_rows):
+                    for j in range(num_cols):
+                        item = QTableWidgetItem(str(self.儲存資料.iat[i, j]))
+                        self.tableWidget.setItem(i, j, item)
+
+                self.資料比數標籤.setText(f'資料筆數: {len(self.儲存資料)}/{self.tableWidget.rowCount()}')
+
+    def ConcatTable(self, 匯入資料):
+        try:
             self.儲存資料 = pd.concat([self.儲存資料, 匯入資料], ignore_index=True)
 
-        num_rows, num_cols = self.儲存資料.shape
+            num_rows, num_cols = self.儲存資料.shape
 
-        # 設置表格的行數和列數
-        self.tableWidget.setRowCount(num_rows)
-        self.tableWidget.setColumnCount(num_cols)
+            # 設置表格的行數和列數
+            self.tableWidget.setRowCount(num_rows)
+            self.tableWidget.setColumnCount(num_cols)
 
-        # 設置表頭 (表格第一列的欄位名稱)
-        self.tableWidget.setHorizontalHeaderLabels(self.儲存資料.columns)
+            # 設置表頭 (表格第一列的欄位名稱)
+            self.tableWidget.setHorizontalHeaderLabels(self.儲存資料.columns)
 
-        # 將數據插入表格中，先迭代行(橫的)，再迭代欄位(直的)
-        # 也就是針對每行將各個欄位的資訊填入
-        # self.儲存資料.iat[i, j] 是一個用於訪問 Pandas DataFrame 的特定位置的方法。
-        # 它的使用方式是 iat[row_index, column_index]，其中 row_index 是行的索引，column_index 是列的索引
-        # 取得值後再轉換成字串，填入表格中
-        for i in range(num_rows):
-            for j in range(num_cols):
-                item = QTableWidgetItem(str(self.儲存資料.iat[i, j]))
-                self.tableWidget.setItem(i, j, item)
+            # 將數據插入表格中，先迭代行(橫的)，再迭代欄位(直的)
+            # 也就是針對每行將各個欄位的資訊填入
+            # self.儲存資料.iat[i, j] 是一個用於訪問 Pandas DataFrame 的特定位置的方法。
+            # 它的使用方式是 iat[row_index, column_index]，其中 row_index 是行的索引，column_index 是列的索引
+            # 取得值後再轉換成字串，填入表格中
+            for i in range(num_rows):
+                for j in range(num_cols):
+                    item = QTableWidgetItem(str(self.儲存資料.iat[i, j]))
+                    self.tableWidget.setItem(i, j, item)
+
+            self.資料比數標籤.setText(f'資料筆數: {len(self.儲存資料)}/{self.tableWidget.rowCount()}')
+
+        except:
+            error_message = traceback.format_exc()
+            QMessageBox.warning(self, "資料匯入錯誤", f"錯誤 : {error_message} \n儲存資料: {self.儲存資料}")
+
+    def UpdateTable(self):
+        # 請注意任何有關表格的操作，都必須注意是否連動到Data
+        # 否則只清空表格，不會影響到self.儲存資料內的資料，可能造成操作上的問題
+        try:
+            num_rows, num_cols = self.儲存資料.shape
+
+            # 設置表格的行數和列數
+            self.tableWidget.setRowCount(num_rows)
+            self.tableWidget.setColumnCount(num_cols)
+
+            # 設置表頭 (表格第一列的欄位名稱)
+            self.tableWidget.setHorizontalHeaderLabels(self.儲存資料.columns)
+
+            # 將數據插入表格中，先迭代行(橫的)，再迭代欄位(直的)
+            # 也就是針對每行將各個欄位的資訊填入
+            # self.儲存資料.iat[i, j] 是一個用於訪問 Pandas DataFrame 的特定位置的方法。
+            # 它的使用方式是 iat[row_index, column_index]，其中 row_index 是行的索引，column_index 是列的索引
+            # 取得值後再轉換成字串，填入表格中
+            for i in range(num_rows):
+                for j in range(num_cols):
+                    item = QTableWidgetItem(str(self.儲存資料.iat[i, j]))
+                    self.tableWidget.setItem(i, j, item)
+        except:
+            error_message = traceback.format_exc()
+            QMessageBox.warning(self, "資料匯入錯誤", f"錯誤 : {error_message} \n儲存資料: {self.儲存資料}")
 
     def filterTable(self):
         # .strip() 默認為去掉開頭和末尾的空格
         # 取得文字框內容
-        搜索子串 = self.搜索框.text().strip().lower()
+        搜索子串 = self.搜索框.text().strip()
 
         # 迭代所有表格內容
         for row in range(self.tableWidget.rowCount()):
             # (row, 0) 分別代表行索引(橫的)和列索引(直的)
-            母工單單號 = self.tableWidget.item(row, 0).text().lower()
-            工號 = self.tableWidget.item(row, 1).text().lower()
+            母工單單號 = self.tableWidget.item(row, 0).text()
+            工號 = self.tableWidget.item(row, 1).text()
 
             # 如果搜索字串出現在表格內就不隱藏，否則隱藏
             if 搜索子串 in 母工單單號 or 搜索子串 in 工號:
@@ -372,12 +474,18 @@ class 子介面_核對表格(QMainWindow):
                 self.tableWidget.setRowHidden(row, True)
 
     def deleteALL(self):
-        confirm = QtWidgets.QMessageBox.question(self, "清空確認", "即將清除所有項目，確定要這麼做嗎?",
-                                                 QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
-        if confirm == QtWidgets.QMessageBox.Yes:
-            self.tableWidget.clearContents()
-            # 清空DataFrame
-            self.儲存資料 = self.儲存資料.iloc[0:0]
+        try:
+            confirm = QtWidgets.QMessageBox.question(self, "清空確認", "即將清除所有項目，確定要這麼做嗎?",
+                                                     QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+            if confirm == QtWidgets.QMessageBox.Yes:
+                # 清空DataFrame和表格資料
+                self.tableWidget.setRowCount(0)
+                self.儲存資料 = self.儲存資料.iloc[0:0]
+                # 顯示剩餘筆數
+                self.資料比數標籤.setText(f'資料筆數: {len(self.儲存資料)}/{self.tableWidget.rowCount()}')
+        except:
+            error_message = traceback.format_exc()
+            QMessageBox.warning(self, "清除功能錯誤", f"錯誤 : {error_message}")
 
     def delete_selected_rows(self):
         try:
@@ -390,6 +498,9 @@ class 子介面_核對表格(QMainWindow):
             self.儲存資料 = self.儲存資料.drop(選擇項目)
             self.儲存資料 = self.儲存資料.reset_index(drop=True)
             self.tableWidget.removeRow(選擇項目[0])
+
+            # 顯示剩餘筆數
+            self.資料比數標籤.setText(f'資料筆數: {len(self.儲存資料)}/{self.tableWidget.rowCount()}')
 
         except:
             error_message = traceback.format_exc()
