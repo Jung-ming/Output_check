@@ -2,12 +2,16 @@ import pandas as pd
 
 
 def Read_Output(Output輸出檔):
-    Output_DIP = pd.read_excel(Output輸出檔)
-    Output_SMT = pd.read_excel(Output輸出檔, sheet_name='SMT')
-    Output = pd.concat(
-        [Output_DIP[['母工單單號', '工號', '名稱規格', '工令量', 'SOURCE']], Output_SMT[['母工單單號', '工號', '名稱規格', '工令量', 'SOURCE']]],
-        ignore_index=True)
-    Output = Output.assign(尾數=None, 移轉小記=None, 總計=None, 餘數=None, 註記=None)
+    工作表名稱 = pd.ExcelFile(Output輸出檔).sheet_names
+    if '匯出檔' in 工作表名稱:
+        Output = pd.read_excel(Output輸出檔)
+    else:
+        Output_DIP = pd.read_excel(Output輸出檔)
+        Output_SMT = pd.read_excel(Output輸出檔, sheet_name='SMT')
+        Output = pd.concat(
+            [Output_DIP[['母工單單號', '工號', '名稱規格', '工令量', 'SOURCE']], Output_SMT[['母工單單號', '工號', '名稱規格', '工令量', 'SOURCE']]],
+            ignore_index=True)
+        Output = Output.assign(尾數=None, 移轉小記=None, 總計=None, 餘數=None, 註記=None)
 
     return Output
 
@@ -15,9 +19,10 @@ def Read_Output(Output輸出檔):
 def Read_DIP(DIP_file):
     DIP_Sheet1 = pd.read_excel(DIP_file)
     DIP_Sheet1.drop(['    '], axis=1)
-    DIP_Sheet1.columns = ['工號', '名稱', '工單', 'MO', '工令量', 'SOURCE ', 'Unnamed: 6', '開始時間',
+    columns = ['工號', '名稱', '工單', 'MO', '工令量', 'SOURCE ', 'Unnamed: 6', '開始時間',
                           'DIP首件產出時間/數量', 'OUTPUT', '製程', '尾數 ', '移轉小記', '總計', '餘數',
                           'Unnamed: 15']
+    DIP_Sheet1.columns = columns
     末位足標 = DIP_Sheet1.index[-1]
 
     DIP_四零四內帳 = pd.read_excel(DIP_file, header=1, sheet_name='四零四內帳')
@@ -36,7 +41,8 @@ def Read_DIP(DIP_file):
                 DIP_Sheet1.at[對應足標, '移轉小記'] = 欄位['移轉小記']
                 DIP_Sheet1.at[對應足標, '總計'] = 欄位['總計']
                 DIP_Sheet1.at[對應足標, '餘數'] = 欄位['餘數']
-                DIP_Sheet1.at[對應足標, 'Unnamed: 15'] = 欄位['Unnamed: 15']
+                if 'Unnamed: 15' in list(工作表.columns):
+                    DIP_Sheet1.at[對應足標, 'Unnamed: 15'] = 欄位['Unnamed: 15']
             else:
                 末位足標 += 1
                 DIP_Sheet1.at[末位足標, '工號'] = 欄位['工號']
@@ -48,7 +54,8 @@ def Read_DIP(DIP_file):
                 DIP_Sheet1.at[末位足標, '移轉小記'] = 欄位['移轉小記']
                 DIP_Sheet1.at[末位足標, '總計'] = 欄位['總計']
                 DIP_Sheet1.at[末位足標, '餘數'] = 欄位['餘數']
-                DIP_Sheet1.at[末位足標, 'Unnamed: 15'] = 欄位['Unnamed: 15']
+                if 'Unnamed: 15' in list(工作表.columns):
+                    DIP_Sheet1.at[末位足標, 'Unnamed: 15'] = 欄位['Unnamed: 15']
 
     # 直接將工號設定為索引，這樣就能直接用工號去找特定的資料，不用考慮足標的問題
     return DIP_Sheet1[['工號', '名稱', '工令量', 'SOURCE ', '尾數 ', '移轉小記', '總計', '餘數',
@@ -56,8 +63,8 @@ def Read_DIP(DIP_file):
 
 
 if __name__ == "__main__":
-    Output = Read_Output('Output輸出檔0927.xlsx')
-    DIP = Read_DIP('112.9.27 結.xlsx')
+    Output = Read_Output('Output輸出檔1005.xlsx')
+    DIP = Read_DIP('112.10.5.xlsx')
     for 足標, 欄位 in Output.iterrows():
         if 欄位['母工單單號'] in DIP.index:
             Output.at[足標, '尾數'] = DIP.loc[欄位['母工單單號'], '尾數 ']
@@ -73,18 +80,4 @@ if __name__ == "__main__":
             Output.at[足標, '註記'] = DIP.loc[欄位['工號'], 'Unnamed: 15']
         else:
             Output.at[足標, '尾數'] = '查無資料'
-    Output.to_excel('比對結果3.xlsx', index=False)
-    # result = DIP[(DIP['工號'].isin(Output['母工單單號'])) | (DIP['工號'].isin(Output['工號']))]
-    # DIP.to_excel('DIP.xlsx')
-
-'''
-Index(['工號', '名稱規格', '    ', 'Unnamed: 3', '工令量', 'SOURCE', '預定開工日', '開始時間',
-       'DIP首件產出時間/數量', 'OUTPUT',
-       '                                                                                                                                                                                                     ',
-       '尾數 ', 'Unnamed: 12', 'Unnamed: 13', 'Unnamed: 14', 'Unnamed: 15'],
-      dtype='object')
-      
-['工號', '名稱', '工單', 'MO', '工令量', 'SOURCE ', 'Unnamed: 6', '開始時間',
-       'DIP首件產出時間/數量', 'OUTPUT', '製程', '尾數 ', '移轉小記', '總計', '餘數',
-       'Unnamed: 15']
-'''
+    Output.to_excel('比對結果.xlsx', index=False)
