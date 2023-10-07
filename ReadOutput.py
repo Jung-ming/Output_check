@@ -80,18 +80,4 @@ if __name__ == "__main__":
             Output.at[足標, '註記'] = DIP.loc[欄位['工號'], 'Unnamed: 15']
         else:
             Output.at[足標, '尾數'] = '查無資料'
-    Output.to_excel('比對結果3.xlsx', index=False)
-    # result = DIP[(DIP['工號'].isin(Output['母工單單號'])) | (DIP['工號'].isin(Output['工號']))]
-    # DIP.to_excel('DIP.xlsx')
-
-'''
-Index(['工號', '名稱規格', '    ', 'Unnamed: 3', '工令量', 'SOURCE', '預定開工日', '開始時間',
-       'DIP首件產出時間/數量', 'OUTPUT',
-       '                                                                                                                                                                                                     ',
-       '尾數 ', 'Unnamed: 12', 'Unnamed: 13', 'Unnamed: 14', 'Unnamed: 15'],
-      dtype='object')
-      
-['工號', '名稱', '工單', 'MO', '工令量', 'SOURCE ', 'Unnamed: 6', '開始時間',
-       'DIP首件產出時間/數量', 'OUTPUT', '製程', '尾數 ', '移轉小記', '總計', '餘數',
-       'Unnamed: 15']
-'''
+    Output.to_excel('比對結果.xlsx', index=False)
