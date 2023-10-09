@@ -11,11 +11,16 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QFileDialog,
 from PyQt5.QtCore import Qt, QDate, QSettings
 from PyQt5 import QtWidgets, QtCore
 from ReadOutput import *
+from log import *
 
 
 class 主介面(QMainWindow):
     def __init__(self):
         super().__init__()
+
+        # 設定資料夾與名稱
+        當天日期文字格式 = datetime.datetime.now().strftime('%Y%m%d')
+        self.Mainlog = get_logger(log_dir='Runninglog')
         self.文件選擇 = 子介面_文件選擇()
         self.核對表格 = 子介面_核對表格()
         # 判斷使用者是否有選擇功能執行，若有，就會在執行功能後輸出文件
@@ -103,64 +108,58 @@ class 主介面(QMainWindow):
             if self.文件選擇.Output選擇確認:
                 self.執行狀態列.showMessage('匯入資料中....', 0)
                 Output = Read_Output(self.文件選擇.Output)
-                self.核對表格.ConcatTable(匯入資料=Output)
-                QMessageBox.information(self, "結果", "匯入資料新增成功")
-                self.執行狀態列.showMessage('匯入完成', 2000)
+                if isinstance(Output, pd.DataFrame):
+                    self.核對表格.ConcatTable(匯入資料=Output)
+                    QMessageBox.information(self, "結果", "匯入資料新增成功")
+                    self.執行狀態列.showMessage('匯入完成', 2000)
+                else:
+                    self.執行狀態列.showMessage('Output讀取錯誤', 2000)
             else:
                 QMessageBox.warning(self, "警告", "尚未選擇Output文件!")
                 self.執行狀態列.showMessage('匯入失敗!', 2000)
                 return
         except:
-            error_message = traceback.format_exc()
-            QMessageBox.warning(self, "匯入功能錯誤", f"錯誤 : {error_message}")
+            self.執行狀態列.showMessage('Output匯入錯誤', 2000)
+            # 使用logging.exception記錄異常的詳細堆棧信息
+            self.Mainlog.exception('匯入功能出現異常:')
+            QMessageBox.warning(self, "匯入功能錯誤", "匯入功能錯誤，請檢察檔案是否正確!")
 
     def Export_Output(self):
-        # 獲取桌面路徑
-        系統 = platform.system()
-        目錄 = os.path.expanduser("~")
+        try:
+            # 設定桌面路徑
+            # 可將 波浪符(~) 擴展為用戶的主目錄，用於跨平台的路徑展開功能，後面再加上/Desktop
+            # 就可以將檔案輸出至桌面
+            桌面路徑 = os.path.expanduser('~') + '/Desktop'
+            # 預設路徑 若此路徑不存在，則採用桌面路徑
+            預設路徑 = '//file-server/生管部/五股廠/Jimmy/Output匯出檔'
 
-        if 系統 == "Windows":
-            桌面路徑 = os.path.join(目錄, "Desktop").replace('\\', '/')
-        elif 系統 == "Darwin":  # macOS
-            桌面路徑 = os.path.join(目錄, "Desktop").replace('\\', '/')
-        elif 系統 == "Linux":
-            桌面路徑 = os.path.join(目錄, "Desktop").replace('\\', '/')
-        else:
-            # 默認返回用戶主目錄
-            桌面路徑 = 目錄.replace('\\', '/')
+            if not os.path.exists(預設路徑):
+                預設路徑 = 桌面路徑
 
-        # 預設路徑 若此路徑不存在，則採用桌面路徑
-        預設路徑 = '//file-server/生管部/五股廠/Jimmy/Output匯出檔'
+            # 設定檔名
+            當天日期_文字格式 = datetime.datetime.now().strftime('%y%m%d%H%M')
+            輸出檔名 = 'Output尾數檔' + 當天日期_文字格式 + '.xlsx'
 
-        # 設定檔名
-        當天日期_文字格式 = datetime.datetime.now().strftime('%y%m%d%H%M')
-        輸出檔名 = 'Output尾數檔' + 當天日期_文字格式 + '.xlsx'
-
-        if self.核對表格.儲存資料.empty:
-            confirm = QMessageBox.question(self, "確認", "Output資料為空，確定進行輸出?",
-                                           QMessageBox.Yes | QMessageBox.No)
+            if self.核對表格.儲存資料.empty:
+                confirm = QMessageBox.question(self, "確認", "Output資料為空，確定進行輸出?",
+                                               QMessageBox.Yes | QMessageBox.No)
+            else:
+                confirm = QMessageBox.question(self, "確認", "即將輸出Output資料，確定執行?",
+                                               QMessageBox.Yes | QMessageBox.No)
             if confirm == QMessageBox.Yes:
-                if os.path.exists(預設路徑):
-                    self.核對表格.儲存資料.to_excel(f'{預設路徑}/{輸出檔名}', index=False, sheet_name='匯出檔')
-                    self.執行狀態列.showMessage('檔案輸出完成!', 2000)
-                    QMessageBox.information(self, '結果', 'Output尾數檔案輸出完成!')
-                else:
-                    self.核對表格.儲存資料.to_excel(f'{桌面路徑}/{輸出檔名}', index=False, sheet_name='匯出檔')
-                    self.執行狀態列.showMessage('檔案輸出完成!', 2000)
+                self.核對表格.儲存資料.to_excel(f'{預設路徑}/{輸出檔名}', index=False, sheet_name='匯出檔')
+                self.執行狀態列.showMessage('檔案輸出完成!', 2000)
+                if 'Desktop' in 預設路徑:
                     QMessageBox.information(self, '結果', '預設路徑不存在，Output尾數檔案已輸出至桌面!')
+                else:
+                    QMessageBox.information(self, '結果', 'Output尾數檔案輸出完成!')
 
-        else:
-            confirm = QMessageBox.question(self, "確認", "即將輸出Output資料，確定執行?",
-                                           QMessageBox.Yes | QMessageBox.No)
-            if confirm == QMessageBox.Yes:
-                if os.path.exists(預設路徑):
-                    self.核對表格.儲存資料.to_excel(f'{預設路徑}/{輸出檔名}', index=False, sheet_name='匯出檔')
-                    self.執行狀態列.showMessage('檔案輸出完成!', 2000)
-                    QMessageBox.information(self, '結果', 'Output尾數檔案輸出完成!')
-                else:
-                    self.核對表格.儲存資料.to_excel(f'{桌面路徑}/{輸出檔名}', index=False, sheet_name='匯出檔')
-                    self.執行狀態列.showMessage('檔案輸出完成!', 2000)
-                    QMessageBox.information(self, '結果', '預設路徑不存在，Output尾數檔案已輸出至桌面!')
+
+
+        except:
+            self.執行狀態列.showMessage('檔案匯出錯誤', 2000)
+            self.Mainlog.exception('匯出功能出現異常:')
+            QMessageBox.warning(self, "匯出功能錯誤", "匯出功能錯誤")
 
     def Output_check(self):
         try:
@@ -175,49 +174,55 @@ class 主介面(QMainWindow):
                 else:
                     self.執行狀態列.showMessage('檔案核對中...', 0)
                     DIP = Read_DIP(self.文件選擇.DIP)
-                    for 足標, 欄位 in self.核對表格.儲存資料.iterrows():
-                        if 欄位['母工單單號'] in DIP.index:
-                            self.核對表格.儲存資料.at[足標, '尾數'] = DIP.loc[欄位['母工單單號'], '尾數 ']
-                            self.核對表格.儲存資料.at[足標, '移轉小記'] = DIP.loc[欄位['母工單單號'], '移轉小記']
-                            self.核對表格.儲存資料.at[足標, '總計'] = DIP.loc[欄位['母工單單號'], '總計']
-                            self.核對表格.儲存資料.at[足標, '餘數'] = DIP.loc[欄位['母工單單號'], '餘數']
-                            self.核對表格.儲存資料.at[足標, '註記'] = DIP.loc[欄位['母工單單號'], 'Unnamed: 15']
-                        elif 欄位['工號'] in DIP.index:
-                            self.核對表格.儲存資料.at[足標, '尾數'] = DIP.loc[欄位['工號'], '尾數 ']
-                            self.核對表格.儲存資料.at[足標, '移轉小記'] = DIP.loc[欄位['工號'], '移轉小記']
-                            self.核對表格.儲存資料.at[足標, '總計'] = DIP.loc[欄位['工號'], '總計']
-                            self.核對表格.儲存資料.at[足標, '餘數'] = DIP.loc[欄位['工號'], '餘數']
-                            self.核對表格.儲存資料.at[足標, '註記'] = DIP.loc[欄位['工號'], 'Unnamed: 15']
-                        else:
-                            self.核對表格.儲存資料.at[足標, '尾數'] = '查無資料'
+                    if isinstance(DIP, pd.DataFrame):
+                        for 足標, 欄位 in self.核對表格.儲存資料.iterrows():
+                            if 欄位['母工單單號'] in DIP.index:
+                                self.核對表格.儲存資料.at[足標, '尾數'] = DIP.loc[欄位['母工單單號'], '尾數 ']
+                                self.核對表格.儲存資料.at[足標, '移轉小記'] = DIP.loc[欄位['母工單單號'], '移轉小記']
+                                self.核對表格.儲存資料.at[足標, '總計'] = DIP.loc[欄位['母工單單號'], '總計']
+                                self.核對表格.儲存資料.at[足標, '餘數'] = DIP.loc[欄位['母工單單號'], '餘數']
+                                self.核對表格.儲存資料.at[足標, '註記'] = DIP.loc[欄位['母工單單號'], 'Unnamed: 15']
+                            elif 欄位['工號'] in DIP.index:
+                                self.核對表格.儲存資料.at[足標, '尾數'] = DIP.loc[欄位['工號'], '尾數 ']
+                                self.核對表格.儲存資料.at[足標, '移轉小記'] = DIP.loc[欄位['工號'], '移轉小記']
+                                self.核對表格.儲存資料.at[足標, '總計'] = DIP.loc[欄位['工號'], '總計']
+                                self.核對表格.儲存資料.at[足標, '餘數'] = DIP.loc[欄位['工號'], '餘數']
+                                self.核對表格.儲存資料.at[足標, '註記'] = DIP.loc[欄位['工號'], 'Unnamed: 15']
+                            else:
+                                self.核對表格.儲存資料.at[足標, '尾數'] = '查無資料'
 
-                    self.核對表格.UpdateTable()
-                    self.執行狀態列.showMessage('核對完成!', 2000)
-                    QMessageBox.information(self, '結果', 'DIP移轉紀錄已核對完成，並填入表格中!')
+                        self.核對表格.UpdateTable()
+                        self.執行狀態列.showMessage('核對完成!', 2000)
+                        QMessageBox.information(self, '結果', 'DIP移轉紀錄已核對完成，並填入表格中!')
+                    else:
+                        self.執行狀態列.showMessage('DIP讀取失敗!', 2000)
             else:
                 QMessageBox.warning(self, '警告', '尚未選擇DIP文件!')
                 return
         except:
-            error_message = traceback.format_exc()
-            QMessageBox.warning(self, "核對功能錯誤", f"錯誤 : {error_message}")
+            self.執行狀態列.showMessage('DUP核對錯誤', 2000)
+            # 使用logging.exception記錄異常的詳細堆棧信息
+            self.Mainlog.exception('核對功能出現異常:')
+            QMessageBox.warning(self, "核對功能錯誤", f"核對功能錯誤!")
 
     def ShowTable(self):
         self.核對表格.show()
 
     def closeEvent(self, event):
         self.saveSettings()
+        # 使用logging.info記錄程式的結束
+        self.Mainlog.info('程式結束')
         event.accept()
 
     def saveSettings(self):
         settings = QtCore.QSettings("PSI", "Output_check")
         settings.setValue("Output暫存資料", self.核對表格.儲存資料)
-        pass
+        self.Mainlog.info(f'儲存資料紀錄，當前筆數:{len(self.核對表格.儲存資料)}/{self.核對表格.tableWidget.rowCount()}')
 
     def loadSettings(self):
         settings = QtCore.QSettings("PSI", "Output_check")
         self.核對表格.儲存資料 = settings.value("Output暫存資料", '初次載入')
         self.核對表格.Import_data_and_table()
-        pass
 
 
 class 子介面_文件選擇(QMainWindow):
